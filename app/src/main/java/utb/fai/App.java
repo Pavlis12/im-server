@@ -3,6 +3,8 @@ package utb.fai;
 import java.io.*;
 import java.net.*;
 import java.util.concurrent.*;
+//přijmaní klientu nekonečná smyčka 
+//idealně zde dát hashmap aby to splnilo logiku 
 
 public class App {
 
@@ -13,7 +15,7 @@ public class App {
 			if (args[0].startsWith("--help")) {
 				System.out.printf("Usage: Server [PORT] [MAX_CONNECTIONS]\n" +
 						"If PORT is not specified, default port %d is used\n" +
-						"If MAX_CONNECTIONS is not specified, default number=%d is used", port, max_conn);
+						"If MAX_CONNECTIONS is not specified, default number=%d is used", port, max_conn); //max počet uživatelů co se můžou přihlásit
 				return;
 			}
 			try {
@@ -31,8 +33,8 @@ public class App {
 		}
 		// TODO Auto-generated method stub
 		System.out.printf("IM server listening on port %d, maximum nr. of connections=%d...\n", port, max_conn);
-		ExecutorService pool = Executors.newFixedThreadPool(2 * max_conn);
-		ActiveHandlers activeHandlers = new ActiveHandlers();
+		ExecutorService pool = Executors.newFixedThreadPool(2 * max_conn); // protože 2 vlákna na klienta
+		ActiveHandlers activeHandlers = new ActiveHandlers(); // s ní pcacují všechny sockety a předává se přes konstruktor 
 
 		try {
 			ServerSocket sSocket = new ServerSocket(port);

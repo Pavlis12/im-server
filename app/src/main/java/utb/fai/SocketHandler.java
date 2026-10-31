@@ -3,20 +3,23 @@ package utb.fai;
 import java.io.*;
 import java.net.*;
 import java.util.concurrent.*;
+import java.util.Set;
 
 public class SocketHandler {
 	/** mySocket je socket, o který se bude tento SocketHandler starat */
 	Socket mySocket;
 
 	/** client ID je øetìzec ve formátu <IP_adresa>:<port> */
-	String clientID;
-
+	String clientID; //předěláme na něco jiného idk co 
+	String clientName;
+	Set<String> myGroups = ConcurrentHashMap.newKeySet();
+	ActiveHandlers activeHandlers;
 	/**
 	 * activeHandlers je reference na mnoinu vech právì bìících SocketHandlerù.
 	 * Potøebujeme si ji udrovat, abychom mohli zprávu od tohoto klienta
 	 * poslat vem ostatním!
 	 */
-	ActiveHandlers activeHandlers;
+	
 
 	/**
 	 * messages je fronta pøíchozích zpráv, kterou musí mít kaý klient svoji
@@ -88,14 +91,76 @@ public class SocketHandler {
 				 * v okamiku, kdy nás Thread pool spustí, pøidáme se do mnoiny
 				 * vech aktivních handlerù, aby chodily zprávy od ostatních i nám
 				 */
-				activeHandlers.add(SocketHandler.this);
+				
 				BufferedReader reader = new BufferedReader(new InputStreamReader(mySocket.getInputStream(), "UTF-8"));
-				while ((request = reader.readLine()) != null) { // pøila od mého klienta nìjaká zpráva?
-					// ano - poli ji vem ostatním klientùm
-					request = "From client " + clientID + ": " + request;
-					System.out.println(request);
-					activeHandlers.sendMessageToAll(SocketHandler.this, request);
+				while(clientName == null){
+					messages.offer("Zadej jmeno bez mezer: ");
+					
+					String name = reader.readLine();
+
+					if (name == null) {
+       				 return; 
+   					 } 
+					 else if (name.trim().isEmpty() || name.contains(" "))
+					 {
+      				  messages.offer("Chyba: Jmeno nesmi byt prazdne ani obsahovat mezery!");
+   					 } 
+					 else 
+					{
+     				   clientName = name;
+       				 myGroups.add("public");
+    				}
+					
+				
 				}
+				activeHandlers.add(SocketHandler.this);
+
+
+				while ((request = reader.readLine()) != null) {
+   if (request.startsWith("#setMyName ")) {
+    String newName = request.substring(11).trim();
+    if (!newName.isEmpty() && !newName.contains(" ")) {
+        if (!activeHandlers.isNameTaken(newName)) {
+            clientName = newName;
+        } else {
+            messages.offer("Toto jmeno je jiz obsazene.");
+        }
+    } else {
+        messages.offer("Jmeno nesmi byt prazdne ani obsahovat mezery.");
+    }
+}
+    else if (request.startsWith("#join ")) {
+        String roomName = request.substring(6).trim();
+        if (!roomName.isEmpty()) {
+            myGroups.add(roomName);
+        }
+    } 
+    else if (request.startsWith("#leave ")) {
+        String roomName = request.substring(7).trim();
+        if (!roomName.isEmpty()) {
+            myGroups.remove(roomName);
+        }
+    } 
+    else if (request.equals("#groups")) {
+        String groupsList = String.join(",", myGroups);
+        messages.offer(groupsList);
+    } 
+    else if (request.startsWith("#sendPrivate ")) {
+        String[] parts = request.split(" ", 3);
+        if (parts.length == 3) {
+            String targetName = parts[1];
+            String privateMsg = parts[2];
+           activeHandlers.sendPrivate(clientName, targetName, privateMsg);
+        } else {
+            messages.offer("Spatny format. Pouzij: #sendPrivate <jmeno> <zprava>");
+        }
+    } 
+    else {
+        String formattedMsg = "[" + clientName + "] >> " + request;
+        System.out.println(formattedMsg);
+        activeHandlers.sendMessageToGroups(SocketHandler.this, formattedMsg);
+    }
+}
 				inputFinished = true;
 				messages.offer("OutputHandler, wakeup and die!");
 			} catch (UnknownHostException e) {
@@ -105,7 +170,6 @@ public class SocketHandler {
 			} catch (InterruptedException e) {
 				e.printStackTrace();
 			} finally {
-				// remove yourself from the set of activeHandlers
 				synchronized (activeHandlers) {
 					activeHandlers.remove(SocketHandler.this);
 				}
